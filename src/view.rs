@@ -2,6 +2,7 @@ use crate::backend::{
     Backend, BackendCommand, LinkAction, MouseButton, RenderableContent,
 };
 use crate::bindings::{BindingAction, BindingsLayout, InputKind};
+use crate::settings::BackendBuilder;
 use crate::terminal::{Command, Event, Terminal};
 use crate::theme::TerminalStyle;
 use alacritty_terminal::index::Point as TerminalGridPoint;
@@ -21,19 +22,24 @@ use iced_graphics::core::widget::{tree, Tree};
 use iced_graphics::core::Widget;
 use iced_graphics::geometry::Stroke;
 
-pub struct TerminalView<'a> {
-    term: &'a Terminal,
+pub struct TerminalView<'a, B> {
+    term: &'a Terminal<B>,
 }
 
-impl<'a> TerminalView<'a> {
-    pub fn show(term: &'a Terminal) -> Element<'_, Event> {
+impl<'a, B> TerminalView<'a, B>
+where
+    B: BackendBuilder,
+{
+    pub fn show(term: &'a Terminal<B>) -> Element<'_, Event> {
         container(Self { term })
             .width(Length::Fill)
             .height(Length::Fill)
             .style(|_| term.theme.container_style())
             .into()
     }
+}
 
+impl<'a, B> TerminalView<'a, B> {
     pub fn focus<Message: 'static>(
         id: iced::widget::text_input::Id,
     ) -> iced::Task<Message> {
@@ -182,7 +188,8 @@ impl<'a> TerminalView<'a> {
             terminal_content.grid.display_offset(),
         );
 
-        // Handle command or selection update based on terminal mode and modifiers
+        // Handle command or selection update based on terminal mode and
+        // modifiers
         if state.is_dragged {
             let terminal_mode = terminal_content.terminal_mode;
             let cmd = if terminal_mode.intersects(TermMode::MOUSE_MOTION) {
@@ -368,7 +375,10 @@ impl<'a> TerminalView<'a> {
     }
 }
 
-impl<'a> Widget<Event, Theme, iced::Renderer> for TerminalView<'a> {
+impl<'a, B> Widget<Event, Theme, iced::Renderer> for TerminalView<'a, B>
+where
+    B: BackendBuilder,
+{
     fn size(&self) -> Size<Length> {
         Size {
             width: Length::Fill,
@@ -613,8 +623,12 @@ impl<'a> Widget<Event, Theme, iced::Renderer> for TerminalView<'a> {
     }
 }
 
-impl<'a> From<TerminalView<'a>> for Element<'a, Event, Theme, iced::Renderer> {
-    fn from(widget: TerminalView<'a>) -> Self {
+impl<'a, B> From<TerminalView<'a, B>>
+    for Element<'a, Event, Theme, iced::Renderer>
+where
+    B: BackendBuilder,
+{
+    fn from(widget: TerminalView<'a, B>) -> Self {
         Self::new(widget)
     }
 }
@@ -681,7 +695,7 @@ mod tests {
             let mut commands = Vec::new();
             let _modifiers = Modifiers::empty();
 
-            TerminalView::handle_left_button_pressed(
+            TerminalView::<()>::handle_left_button_pressed(
                 &mut state,
                 &terminal_mode,
                 cursor_position,
@@ -722,7 +736,7 @@ mod tests {
                 state.keyboard_modifiers = Modifiers::SHIFT;
                 let mut commands = Vec::new();
 
-                TerminalView::handle_left_button_pressed(
+                TerminalView::<()>::handle_left_button_pressed(
                     &mut state,
                     &terminal_mode,
                     cursor_position,
@@ -799,7 +813,7 @@ mod tests {
             ];
 
             for (layout_position, cursor_position, expected) in cases {
-                TerminalView::handle_cursor_moved(
+                TerminalView::<()>::handle_cursor_moved(
                     &mut state,
                     &terminal_content,
                     cursor_position,
@@ -820,7 +834,7 @@ mod tests {
             let cursor_position = Point { x: 100.0, y: 150.0 };
             let mut commands = Vec::new();
 
-            TerminalView::handle_cursor_moved(
+            TerminalView::<()>::handle_cursor_moved(
                 &mut state,
                 &terminal_content,
                 cursor_position,
@@ -848,7 +862,7 @@ mod tests {
             let mut commands = Vec::new();
             let _modifiers = Modifiers::empty();
 
-            TerminalView::handle_cursor_moved(
+            TerminalView::<()>::handle_cursor_moved(
                 &mut state,
                 &terminal_content,
                 cursor_position,
@@ -883,7 +897,7 @@ mod tests {
             let cursor_position = Point { x: 100.0, y: 150.0 };
             let mut commands = Vec::new();
 
-            TerminalView::handle_cursor_moved(
+            TerminalView::<()>::handle_cursor_moved(
                 &mut state,
                 &terminal_content,
                 cursor_position,
@@ -911,7 +925,7 @@ mod tests {
             let cursor_position = Point { x: 100.0, y: 150.0 };
             let mut commands = Vec::new();
 
-            TerminalView::handle_cursor_moved(
+            TerminalView::<()>::handle_cursor_moved(
                 &mut state,
                 &terminal_content,
                 cursor_position,
@@ -951,7 +965,7 @@ mod tests {
             let mut commands = Vec::new();
             let _modifiers = Modifiers::empty();
 
-            TerminalView::handle_button_released(
+            TerminalView::<()>::handle_button_released(
                 &mut state,
                 &terminal_mode,
                 &bindings,
@@ -982,7 +996,7 @@ mod tests {
             let mut commands = Vec::new();
             let _modifiers = Modifiers::empty();
 
-            TerminalView::handle_button_released(
+            TerminalView::<()>::handle_button_released(
                 &mut state,
                 &terminal_mode,
                 &bindings,
@@ -1026,7 +1040,7 @@ mod tests {
             let bindings = BindingsLayout::new();
             let mut commands = Vec::new();
 
-            TerminalView::handle_button_released(
+            TerminalView::<()>::handle_button_released(
                 &mut state,
                 &terminal_mode,
                 &bindings,
@@ -1058,7 +1072,7 @@ mod tests {
             let font = TermFont::new(FontSettings::default());
             let mut commands = Vec::new();
 
-            TerminalView::handle_wheel_scrolled(
+            TerminalView::<()>::handle_wheel_scrolled(
                 &mut state,
                 ScrollDelta::Lines { y: 3.0, x: 0.0 }, // Scroll down 3 lines
                 &font.measure,
@@ -1078,7 +1092,7 @@ mod tests {
             let font = TermFont::new(FontSettings::default());
             let mut commands = Vec::new();
 
-            TerminalView::handle_wheel_scrolled(
+            TerminalView::<()>::handle_wheel_scrolled(
                 &mut state,
                 ScrollDelta::Lines { y: -2.0, x: 0.0 },
                 &font.measure,
@@ -1098,7 +1112,7 @@ mod tests {
             let font = TermFont::new(FontSettings::default());
             let mut commands = Vec::new();
 
-            TerminalView::handle_wheel_scrolled(
+            TerminalView::<()>::handle_wheel_scrolled(
                 &mut state,
                 ScrollDelta::Pixels { y: 45.0, x: 0.0 },
                 &font.measure,
@@ -1119,7 +1133,7 @@ mod tests {
             let font = TermFont::new(FontSettings::default());
             let mut commands = Vec::new();
 
-            TerminalView::handle_wheel_scrolled(
+            TerminalView::<()>::handle_wheel_scrolled(
                 &mut state,
                 ScrollDelta::Pixels { y: -60.0, x: 0.0 },
                 &font.measure,

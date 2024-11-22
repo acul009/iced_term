@@ -2,7 +2,9 @@ use crate::actions::Action;
 use crate::backend::{Backend, BackendCommand};
 use crate::bindings::{Binding, BindingAction, BindingsLayout, InputKind};
 use crate::font::TermFont;
-use crate::settings::{BackendSettings, FontSettings, Settings, ThemeSettings};
+use crate::settings::{
+    BackendBuilder, BackendSettings, FontSettings, Settings, ThemeSettings,
+};
 use crate::theme::{ColorPalette, Theme};
 use crate::AlacrittyEvent;
 use iced::widget::canvas::Cache;
@@ -22,18 +24,21 @@ pub enum Command {
     ProcessBackendCommand(BackendCommand),
 }
 
-pub struct Terminal {
+pub struct Terminal<B> {
     pub id: u64,
     pub(crate) font: TermFont,
     pub(crate) theme: Theme,
     pub(crate) cache: Cache,
     pub(crate) bindings: BindingsLayout,
     pub(crate) backend: Option<Backend>,
-    backend_settings: BackendSettings,
+    backend_settings: BackendSettings<B>,
 }
 
-impl Terminal {
-    pub fn new(id: u64, settings: Settings) -> Self {
+impl<B> Terminal<B>
+where
+    B: BackendBuilder,
+{
+    pub fn new(id: u64, settings: Settings<B>) -> Self {
         Self {
             id,
             font: TermFont::new(settings.font),
@@ -57,7 +62,7 @@ impl Terminal {
                     Backend::new(
                         self.id,
                         sender,
-                        self.backend_settings.clone(),
+                        &self.backend_settings,
                         self.font.measure,
                     )
                     .unwrap_or_else(|_| {

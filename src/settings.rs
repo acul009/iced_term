@@ -1,4 +1,6 @@
-use crate::ColorPalette;
+use std::io::Result;
+
+use crate::{backend::default_builder, ColorPalette};
 use iced::Font;
 
 #[cfg(target_os = "windows")]
@@ -7,24 +9,63 @@ const DEFAULT_SHELL: &str = "wsl.exe";
 #[cfg(not(target_os = "windows"))]
 const DEFAULT_SHELL: &str = "/bin/bash";
 
-#[derive(Default, Clone)]
-pub struct Settings {
+#[derive(Clone)]
+pub struct Settings<B: BackendBuilder> {
     pub font: FontSettings,
     pub theme: ThemeSettings,
-    pub backend: BackendSettings,
+    pub backend: BackendSettings<B>,
+}
+
+impl<B> Settings<B>
+where
+    B: BackendBuilder,
+{
+    pub fn default() -> Settings<impl BackendBuilder> {
+        Settings {
+            font: FontSettings::default(),
+            theme: ThemeSettings::default(),
+            backend: BackendSettings {
+                backend_builder: default_builder(DEFAULT_SHELL.to_string()),
+            },
+        }
+    }
+}
+
+pub trait BackendBuilder {
+    type Backend: alacritty_terminal::tty::EventedPty
+        + alacritty_terminal::event::OnResize
+        + Send
+        + 'static;
+
+    fn build(
+        &self,
+        id: u64,
+        size: iced_core::Size<f32>,
+    ) -> Result<Self::Backend>;
+}
+
+impl<B, T> BackendBuilder for B
+where
+    B: Fn(u64, iced_core::Size<f32>) -> Result<T>,
+    T: alacritty_terminal::tty::EventedPty
+        + alacritty_terminal::event::OnResize
+        + Send
+        + 'static,
+{
+    type Backend = T;
+
+    fn build(
+        &self,
+        id: u64,
+        size: iced_core::Size<f32>,
+    ) -> Result<Self::Backend> {
+        self(id, size)
+    }
 }
 
 #[derive(Debug, Clone)]
-pub struct BackendSettings {
-    pub shell: String,
-}
-
-impl Default for BackendSettings {
-    fn default() -> Self {
-        Self {
-            shell: DEFAULT_SHELL.to_string(),
-        }
-    }
+pub struct BackendSettings<B> {
+    pub backend_builder: B,
 }
 
 #[derive(Debug, Clone)]

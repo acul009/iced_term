@@ -1,6 +1,6 @@
 // pub mod settings;
 use crate::actions::Action;
-use crate::settings::BackendSettings;
+use crate::settings::{BackendBuilder, BackendSettings};
 use alacritty_terminal::event::{
     Event, EventListener, Notify, OnResize, WindowSize,
 };
@@ -138,18 +138,14 @@ pub struct Backend {
     pub url_regex: RegexSearch,
 }
 
-impl Backend {
-    pub fn new(
-        id: u64,
-        event_sender: mpsc::Sender<Event>,
-        settings: BackendSettings,
-        font_size: Size<f32>,
-    ) -> Result<Self> {
+pub fn default_builder(
+    shell_command: String,
+) -> impl Fn(u64, Size<f32>) -> Result<alacritty_terminal::tty::Pty> {
+    move |id: u64, font_size: Size<f32>| {
         let pty_config = tty::Options {
-            shell: Some(tty::Shell::new(settings.shell, vec![])),
+            shell: Some(tty::Shell::new(shell_command.clone(), vec![])),
             ..tty::Options::default()
         };
-        let config = term::Config::default();
         let terminal_size = TerminalSize {
             cell_width: font_size.width as u16,
             cell_height: font_size.height as u16,
@@ -157,8 +153,28 @@ impl Backend {
         };
 
         let pty = tty::new(&pty_config, terminal_size.into(), id)?;
+        Ok(pty)
+    }
+}
+
+impl Backend {
+    pub fn new<B: BackendBuilder>(
+        id: u64,
+        event_sender: mpsc::Sender<Event>,
+        settings: &BackendSettings<B>,
+        font_size: Size<f32>,
+    ) -> Result<Self> {
+        let pty = settings.backend_builder.build(id, font_size)?;
+
         let event_proxy = EventProxy(event_sender);
 
+        let terminal_size = TerminalSize {
+            cell_width: font_size.width as u16,
+            cell_height: font_size.height as u16,
+            ..TerminalSize::default()
+        };
+
+        let config = term::Config::default();
         let mut term = Term::new(config, &terminal_size, event_proxy.clone());
         let cursor = term.grid_mut().cursor_cell().clone();
         let initial_content = RenderableContent {
@@ -527,7 +543,8 @@ impl Backend {
     }
 
     /// Based on alacritty/src/display/hint.rs > regex_match_at
-    /// Retrieve the match, if the specified point is inside the content matching the regex.
+    /// Retrieve the match, if the specified point is inside the content
+    /// matching the regex.
     fn regex_match_at(
         &self,
         terminal: &Term<EventProxy>,
